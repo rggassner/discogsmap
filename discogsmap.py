@@ -1,0 +1,534 @@
+#!venv/bin/python3
+import time
+import math
+import warnings
+from io import BytesIO
+import random
+import requests
+import numpy as np
+import discogs_client
+from sklearn.feature_extraction import DictVectorizer
+from sklearn.metrics.pairwise import cosine_distances
+import umap
+from PIL import Image
+from PIL import ImageDraw
+from pathlib import Path
+import hashlib
+from collections import Counter
+import json
+import markdown
+
+
+warnings.filterwarnings(
+    "ignore",
+    message="n_jobs value 1 overridden to 1 by setting random_state",
+    category=UserWarning,
+)
+
+DISCOGS_USER_TOKEN = "...hd"
+DISCOGS_USERNAME = "...ma"
+
+TAG_WEIGHTS = {
+    "genres": 1,
+    "styles": 2,
+    "artists": 3,
+}
+
+CACHE_FILE = Path("discogs_album_cache.json")
+COVER_CACHE_DIR = Path("cover_cache")
+COVER_CACHE_DIR.mkdir(exist_ok=True)
+
+GAP = 1
+FOLDERS = ["All"]
+#FOLDERS = ["Electronic"]
+
+OUTPUT_IMAGE = "album_map.png"
+OUTPUT_PLAYLIST = "album_playlist.md"
+
+CANVAS_SIZE = 4000
+COVER_SIZE = 140
+BACKGROUND_COLOR = (10, 10, 10)
+
+#RANDOM_SEED = 42
+RANDOM_SEED =  int(time.time()) % 1000000
+LAST_CALL = 0
+RATE_LIMIT_INTERVAL = 1
+
+
+# =========================================================
+# CACHE
+# =========================================================
+
+def load_cache():
+    if CACHE_FILE.exists():
+        with open(CACHE_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {}
+
+
+def save_cache(cache):
+    with open(CACHE_FILE, "w", encoding="utf-8") as f:
+        json.dump(cache, f, indent=2)
+
+
+def rate_limit(min_interval=RATE_LIMIT_INTERVAL):
+    global LAST_CALL
+    now = time.time()
+    delta = now - LAST_CALL
+    if delta < min_interval:
+        time.sleep(min_interval - delta)
+    LAST_CALL = time.time()
+
+
+# =========================================================
+# DISCOGS
+# =========================================================
+
+def cover_cache_path(url, size):
+    h = hashlib.sha1(url.encode("utf-8")).hexdigest()
+    return COVER_CACHE_DIR / f"{h}_{size}.jpg"
+
+
+def init_discogs():
+    return discogs_client.Client(
+        "AlbumMap/0.1",
+        user_token=DISCOGS_USER_TOKEN
+    )
+
+
+def get_user_folders(client):
+    user = client.user(DISCOGS_USERNAME)
+    return {f.name: f for f in user.collection_folders}
+
+
+def collect_releases(client, sleep=1.0):
+    folders = get_user_folders(client)
+
+    if FOLDERS:
+        selected = [folders[name] for name in FOLDERS if name in folders]
+    else:
+        selected = list(folders.values())
+
+    items = []
+
+    for folder in selected:
+        page = 1
+        while True:
+            print(f"Fetching folder '{folder.name}', page {page}")
+            releases_page = folder.releases.page(page)
+            if not releases_page:
+                break
+
+            items.extend(releases_page)
+
+            if len(releases_page) < 50:
+                break
+
+            page += 1
+            time.sleep(sleep)
+
+    return items
+
+
+# =========================================================
+# FEATURES
+# =========================================================
+
+def extract_features(items, tag_weights=TAG_WEIGHTS):
+    cache = load_cache()
+    albums = []
+    feature_dicts = []
+    cache_updated = False
+
+    for item in items:
+        r = item.release
+        rid = str(r.id)
+
+        if rid in cache:
+            album = cache[rid]
+            features = Counter()
+
+            for g in album.get("genres", []):
+                features[f"genre:{g}"] += tag_weights["genres"]
+
+            for s in album.get("styles", []):
+                features[f"style:{s}"] += tag_weights["styles"]
+
+            for a in album.get("artists", "").split(", "):
+                features[f"artist:{a}"] += tag_weights["artists"]
+
+            if features:
+                albums.append(album)
+                feature_dicts.append(dict(features))
+            continue
+
+        rate_limit()
+        try:
+            r.refresh()
+        except Exception:
+            continue
+
+        genres = r.genres or []
+        styles = r.styles or []
+        artists = [a.name.strip() for a in r.artists or [] if a and a.name]
+
+        features = Counter()
+        for g in genres:
+            features[f"genre:{g}"] += tag_weights["genres"]
+        for s in styles:
+            features[f"style:{s}"] += tag_weights["styles"]
+        for a in artists:
+            features[f"artist:{a}"] += tag_weights["artists"]
+
+        cover_url = None
+        if r.images:
+            cover_url = r.images[0].get("uri") or r.images[0].get("resource_url")
+
+        album = {
+            "id": r.id,
+            "title": r.title,
+            "artists": ", ".join(artists),
+            "genres": genres,
+            "styles": styles,
+            "cover_url": cover_url,
+        }
+        if album["cover_url"]:
+            download_cover(album["cover_url"], COVER_SIZE)
+        cache[rid] = album
+        cache_updated = True
+        if not features:
+            continue
+        albums.append(album)
+        feature_dicts.append(dict(features))
+
+    if cache_updated:
+        save_cache(cache)
+
+    return albums, feature_dicts
+
+
+def build_feature_matrix(tags):
+    vectorizer = DictVectorizer(sparse=False)
+    matrix = vectorizer.fit_transform(tags)
+    return matrix
+
+
+# =========================================================
+# PLAYLIST GENERATION
+# =========================================================
+
+def convert_md_to_html(md_path, html_path=None):
+    """
+    Convert a Markdown file to HTML.
+
+    - md_path: path to the Markdown file
+    - html_path: optional, output HTML path. If None, same name as md with .html
+    """
+    if html_path is None:
+        html_path = md_path.with_suffix(".html") if isinstance(md_path, Path) else md_path.replace(".md", ".html")
+
+    with open(md_path, "r", encoding="utf-8") as f:
+        text = f.read()
+
+    html = markdown.markdown(text, extensions=["extra"])
+
+    with open(html_path, "w", encoding="utf-8") as f:
+        f.write(html)
+
+    print(f"Converted {md_path} to {html_path}")
+
+def generate_album_playlist_global_md(albums, matrix, seed_idx, output_path):
+    distances = cosine_distances(
+        matrix[seed_idx].reshape(1, -1),
+        matrix
+    )[0]
+
+    order = np.argsort(distances)
+    seed_album = albums[seed_idx]
+
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write("# Album Playlist — Global Distance\n\n")
+        f.write(f"Seed album:\n**{seed_album['artists']} – {seed_album['title']}**\n\n")
+        f.write("## Playlist\n\n")
+
+        for i, idx in enumerate(order, start=1):
+            album = albums[idx]
+
+            # Embed cached cover image if it exists
+            cover_md = ""
+            if album.get("cover_url"):
+                cover_path = cover_cache_path(album['cover_url'], COVER_SIZE)
+                if cover_path.exists():
+                    cover_md = f"![Cover]({cover_path.as_posix()}) "
+
+            f.write(
+                f"{i}. {cover_md}**{album['artists']} – {album['title']}** "
+                f"(distance from seed: {distances[idx]:.3f})\n"
+            )
+
+    print(f"Saved global playlist to {output_path}")
+    return list(order)
+
+
+def generate_album_playlist_greedy_md(albums, matrix, seed_idx, output_path):
+    n = len(albums)
+    remaining = set(range(n))
+    path = [seed_idx]
+    remaining.remove(seed_idx)
+
+    dist_matrix = cosine_distances(matrix)
+    current = seed_idx
+
+    while remaining:
+        next_idx = min(
+            remaining,
+            key=lambda i: dist_matrix[current][i]
+        )
+        path.append(next_idx)
+        remaining.remove(next_idx)
+        current = next_idx
+
+    seed_album = albums[seed_idx]
+
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write("# Album Playlist — Greedy Nearest Neighbor\n\n")
+        f.write(f"Seed album:\n**{seed_album['artists']} – {seed_album['title']}**\n\n")
+        f.write("## Playlist\n\n")
+
+        for i, idx in enumerate(path, start=1):
+            album = albums[idx]
+
+            cover_md = ""
+            if album.get("cover_url"):
+                cover_path = cover_cache_path(album['cover_url'], COVER_SIZE)
+                if cover_path.exists():
+                    cover_md = f"![Cover]({cover_path.as_posix()}) "
+
+            if i == 1:
+                note = "start"
+            else:
+                note = f"{dist_matrix[path[i-2]][idx]:.3f}"
+
+            f.write(
+                f"{i}. {cover_md}**{album['artists']} – {album['title']}** "
+                f"(step distance: {note})\n"
+            )
+
+
+    print(f"Saved greedy playlist to {output_path}")
+    return path
+
+
+# =========================================================
+# PROJECTION & RENDERING
+# =========================================================
+
+def render_map_with_path(
+    albums,
+    coords,
+    canvas_w,
+    canvas_h,
+    path,
+    output_path,
+    line_color=(80, 200, 255),
+    line_width=4
+):
+    """
+    Render the album map and draw a polyline following
+    the given album index path.
+    """
+    canvas = render_map(albums, coords, canvas_w, canvas_h)
+    draw = ImageDraw.Draw(canvas)
+
+    points = [tuple(coords[i]) for i in path]
+
+    if len(points) > 1:
+        draw.line(points, fill=line_color, width=line_width)
+
+    # Optional: emphasize start / end
+    start = points[0]
+    end = points[-1]
+
+    r = 10
+    draw.ellipse(
+        (start[0]-r, start[1]-r, start[0]+r, start[1]+r),
+        outline=(0, 255, 0),
+        width=3
+    )
+    draw.ellipse(
+        (end[0]-r, end[1]-r, end[0]+r, end[1]+r),
+        outline=(255, 80, 80),
+        width=3
+    )
+
+    canvas.save(output_path)
+    print(f"Saved path map to {output_path}")
+
+
+def project_2d(matrix):
+    reducer = umap.UMAP(
+        n_components=2,
+        metric="cosine",
+        random_state=RANDOM_SEED,
+        n_neighbors=15,
+        min_dist=0.1,
+    )
+    return reducer.fit_transform(matrix)
+
+
+def normalize_coords(coords, padding=200):
+    x = coords[:, 0]
+    y = coords[:, 1]
+
+    x = (x - x.min()) / (x.max() - x.min() or 1)
+    y = (y - y.min()) / (y.max() - y.min() or 1)
+
+    x = x * (CANVAS_SIZE - 2 * padding) + padding
+    y = y * (CANVAS_SIZE - 2 * padding) + padding
+
+    return np.column_stack((x, y))
+
+
+def layout_albums_semantic(coords, n_items):
+    grid = math.ceil(math.sqrt(n_items))
+    cell = COVER_SIZE + GAP
+
+    canvas_w = grid * cell + GAP
+    canvas_h = grid * cell + GAP
+
+    order = np.lexsort((coords[:, 0], coords[:, 1]))
+    positions = np.zeros_like(coords)
+
+    for idx, album_idx in enumerate(order):
+        row = idx // grid
+        col = idx % grid
+        positions[album_idx] = (
+            GAP + col * cell + COVER_SIZE // 2,
+            GAP + row * cell + COVER_SIZE // 2,
+        )
+
+    return positions, (canvas_w, canvas_h)
+
+
+def render_map(albums, coords, canvas_w, canvas_h):
+    canvas = Image.new("RGB", (canvas_w, canvas_h), BACKGROUND_COLOR)
+    draw = ImageDraw.Draw(canvas)
+
+    for (x, y) in coords:
+        draw.ellipse((x-3, y-3, x+3, y+3), fill=(255, 50, 50))
+
+    for album, (x, y) in zip(albums, coords):
+        if not album.get("cover_url"):
+            continue
+
+        img = download_cover(album["cover_url"], COVER_SIZE)
+        if not img:
+            continue
+
+        canvas.paste(
+            img,
+            (int(x - COVER_SIZE // 2), int(y - COVER_SIZE // 2))
+        )
+
+    return canvas
+
+
+def download_cover(url, size):
+    if not url:
+        #print("No cover URL")
+        return None
+    path = cover_cache_path(url, size)
+    if path.exists():
+        #print(f"Cache hit: {path.name}")
+        try:
+            return Image.open(path).convert("RGB")
+        except Exception as e:
+            print(f"Corrupt cache file {path.name}: {e}")
+            path.unlink(missing_ok=True)
+    #print(f"Downloading cover: {url}")
+    try:
+        rate_limit()
+        r = requests.get(
+            url,
+            timeout=15,
+            headers={"User-Agent": "AlbumMap/0.1"}
+        )
+        r.raise_for_status()
+        img = Image.open(BytesIO(r.content)).convert("RGB")
+        img = img.resize((size, size), Image.LANCZOS)
+        img.save(path, "JPEG", quality=90)
+        #print(f"Saved cover → {path}")
+        return img
+    except Exception as e:
+        print(f"Cover download failed: {url}")
+        print(f"Reason: {e}")
+        return None
+
+
+# =========================================================
+# MAIN
+# =========================================================
+
+def main():
+    random.seed(RANDOM_SEED)
+    np.random.seed(RANDOM_SEED)
+
+    client = init_discogs()
+    releases = collect_releases(client)
+
+    print(f"Collected {len(releases)} releases")
+
+    albums, tags = extract_features(releases)
+    print(f"Using {len(albums)} albums")
+
+    matrix = build_feature_matrix(tags)
+
+    # --- map ---
+    coords = project_2d(matrix)
+    coords = normalize_coords(coords)
+    coords, (w, h) = layout_albums_semantic(coords, len(albums))
+
+    image = render_map(albums, coords, w, h)
+    image.save(OUTPUT_IMAGE)
+
+    print(f"Saved map to {OUTPUT_IMAGE}")
+
+    # -------------------------------------------------
+    # PLAYLISTS + PATH MAPS
+    # -------------------------------------------------
+    seed_idx = random.randrange(len(albums))
+
+    global_md = "album_playlist_global.md"
+    greedy_md = "album_playlist_greedy.md"
+
+    global_path = generate_album_playlist_global_md(albums, matrix, seed_idx, global_md)
+    greedy_path = generate_album_playlist_greedy_md(albums, matrix, seed_idx, greedy_md)
+
+    convert_md_to_html(global_md)
+    convert_md_to_html(greedy_md)
+
+    render_map_with_path(
+        albums,
+        coords,
+        w,
+        h,
+        global_path,
+        "album_map_global.png",
+        line_color=(120, 180, 255)
+    )
+
+    render_map_with_path(
+        albums,
+        coords,
+        w,
+        h,
+        greedy_path,
+        "album_map_greedy.png",
+        line_color=(255, 180, 80)
+    )
+
+
+
+if __name__ == "__main__":
+    main()
+
