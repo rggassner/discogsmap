@@ -1,4 +1,8 @@
 #!venv/bin/python3
+import json
+from collections import Counter
+import hashlib
+from pathlib import Path
 import time
 import math
 import warnings
@@ -12,10 +16,6 @@ from sklearn.metrics.pairwise import cosine_distances
 import umap
 from PIL import Image
 from PIL import ImageDraw
-from pathlib import Path
-import hashlib
-from collections import Counter
-import json
 import markdown
 
 
@@ -25,7 +25,7 @@ warnings.filterwarnings(
     category=UserWarning,
 )
 
-DISCOGS_USER_TOKEN = "...hd"
+DISCOGS_USER_TOKEN = "...khd"
 DISCOGS_USERNAME = "...ma"
 
 TAG_WEIGHTS = {
@@ -465,48 +465,55 @@ def download_cover(url, size):
         return None
 
 
-# =========================================================
-# MAIN
-# =========================================================
-
 def main():
+    """
+    Entry point for the AlbumMap pipeline.
+
+    This function orchestrates the full workflow:
+    - Initializes deterministic randomness for reproducible layouts and paths.
+    - Connects to the Discogs API and collects the user's releases.
+    - Extracts album-level features and tags from the collection.
+    - Builds a numerical feature matrix suitable for similarity analysis.
+    - Projects albums into a 2D semantic space and normalizes the coordinates.
+    - Computes a non-overlapping spatial layout for all albums.
+    - Renders and saves a visual map of the album collection.
+    - Selects a random seed album to serve as the starting point for playlists.
+    - Generates two playlist variants:
+        * A global similarity-ordered playlist.
+        * A greedy nearest-neighbor walk playlist.
+    - Exports both playlists as Markdown files and converts them to HTML.
+    - Renders two additional maps visualizing the traversal path of each playlist.
+
+    Output artifacts produced by this function include:
+    - A base album map image.
+    - Two playlist Markdown files (global and greedy).
+    - HTML versions of each playlist.
+    - Two annotated map images with playlist paths overlaid.
+
+    All file paths, random seeds, and rendering parameters are controlled
+    by module-level constants to ensure reproducibility across runs.
+    """
     random.seed(RANDOM_SEED)
     np.random.seed(RANDOM_SEED)
-
     client = init_discogs()
     releases = collect_releases(client)
-
     print(f"Collected {len(releases)} releases")
-
     albums, tags = extract_features(releases)
     print(f"Using {len(albums)} albums")
-
     matrix = build_feature_matrix(tags)
-
-    # --- map ---
     coords = project_2d(matrix)
     coords = normalize_coords(coords)
     coords, (w, h) = layout_albums_semantic(coords, len(albums))
-
     image = render_map(albums, coords, w, h)
     image.save(OUTPUT_IMAGE)
-
     print(f"Saved map to {OUTPUT_IMAGE}")
-
-    # -------------------------------------------------
-    # PLAYLISTS + PATH MAPS
-    # -------------------------------------------------
     seed_idx = random.randrange(len(albums))
-
     global_md = "album_playlist_global.md"
     greedy_md = "album_playlist_greedy.md"
-
     global_path = generate_album_playlist_global_md(albums, matrix, seed_idx, global_md)
     greedy_path = generate_album_playlist_greedy_md(albums, matrix, seed_idx, greedy_md)
-
     convert_md_to_html(global_md)
     convert_md_to_html(greedy_md)
-
     render_map_with_path(
         albums,
         coords,
@@ -516,7 +523,6 @@ def main():
         "album_map_global.png",
         line_color=(120, 180, 255)
     )
-
     render_map_with_path(
         albums,
         coords,
