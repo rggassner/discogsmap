@@ -24,7 +24,7 @@ warnings.filterwarnings(
     category=UserWarning,
 )
 
-DISCOGS_USER_TOKEN = "...hd"
+DISCOGS_USER_TOKEN = "...khd"
 DISCOGS_USERNAME = "...ma"
 
 TAG_WEIGHTS = {
@@ -384,6 +384,29 @@ def layout_albums_semantic(coords, n_items):
 
 
 def render_map(albums, coords, canvas_w, canvas_h):
+    """
+    Render a 2D album map with cover artwork.
+
+    This function creates a canvas of the specified size and places each album
+    at its corresponding 2D coordinate. Album positions are first marked with
+    small reference points, after which available album cover images are
+    downloaded (or loaded from cache) and composited onto the canvas.
+
+    Albums without a cover URL or whose cover image cannot be retrieved are
+    skipped gracefully.
+
+    Args:
+        albums (list[dict]): Sequence of album metadata dictionaries. Each
+            album may include a "cover_url" key used to retrieve artwork.
+        coords (list[tuple[float, float]]): Normalized (x, y) positions for
+            each album in canvas space. Must be the same length and order
+            as `albums`.
+        canvas_w (int): Width of the output image in pixels.
+        canvas_h (int): Height of the output image in pixels.
+
+    Returns:
+        PIL.Image.Image: The rendered album map image.
+    """
     canvas = Image.new("RGB", (canvas_w, canvas_h), BACKGROUND_COLOR)
     draw = ImageDraw.Draw(canvas)
 
