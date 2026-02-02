@@ -18,14 +18,13 @@ from PIL import Image
 from PIL import ImageDraw
 import markdown
 
-
 warnings.filterwarnings(
     "ignore",
     message="n_jobs value 1 overridden to 1 by setting random_state",
     category=UserWarning,
 )
 
-DISCOGS_USER_TOKEN = "...khd"
+DISCOGS_USER_TOKEN = "...hd"
 DISCOGS_USERNAME = "...ma"
 
 TAG_WEIGHTS = {
@@ -55,10 +54,6 @@ LAST_CALL = 0
 RATE_LIMIT_INTERVAL = 1
 
 
-# =========================================================
-# CACHE
-# =========================================================
-
 def load_cache():
     if CACHE_FILE.exists():
         with open(CACHE_FILE, "r", encoding="utf-8") as f:
@@ -79,10 +74,6 @@ def rate_limit(min_interval=RATE_LIMIT_INTERVAL):
         time.sleep(min_interval - delta)
     LAST_CALL = time.time()
 
-
-# =========================================================
-# DISCOGS
-# =========================================================
 
 def cover_cache_path(url, size):
     h = hashlib.sha1(url.encode("utf-8")).hexdigest()
@@ -129,10 +120,6 @@ def collect_releases(client, sleep=1.0):
 
     return items
 
-
-# =========================================================
-# FEATURES
-# =========================================================
 
 def extract_features(items, tag_weights=TAG_WEIGHTS):
     cache = load_cache()
@@ -213,17 +200,7 @@ def build_feature_matrix(tags):
     return matrix
 
 
-# =========================================================
-# PLAYLIST GENERATION
-# =========================================================
-
 def convert_md_to_html(md_path, html_path=None):
-    """
-    Convert a Markdown file to HTML.
-
-    - md_path: path to the Markdown file
-    - html_path: optional, output HTML path. If None, same name as md with .html
-    """
     if html_path is None:
         html_path = md_path.with_suffix(".html") if isinstance(md_path, Path) else md_path.replace(".md", ".html")
 
@@ -318,10 +295,6 @@ def generate_album_playlist_greedy_md(albums, matrix, seed_idx, output_path):
     print(f"Saved greedy playlist to {output_path}")
     return path
 
-
-# =========================================================
-# PROJECTION & RENDERING
-# =========================================================
 
 def render_map_with_path(
     albums,
@@ -434,6 +407,29 @@ def render_map(albums, coords, canvas_w, canvas_h):
 
 
 def download_cover(url, size):
+    """
+    Download, resize, and cache an album cover image.
+
+    This function retrieves an album cover from the given URL, resizes it to a
+    square of the requested size, and stores it in a local cache to avoid
+    repeated network requests. If a cached image already exists, it is loaded
+    and returned instead.
+
+    The cache key is derived from the image URL and target size. Corrupt cache
+    entries are automatically detected, deleted, and re-downloaded.
+
+    Rate limiting is applied before network requests to comply with external
+    service constraints.
+
+    Args:
+        url (str): Direct URL to the album cover image. If None or empty,
+            the function returns None immediately.
+        size (int): Target width and height (in pixels) for the square image.
+
+    Returns:
+        PIL.Image.Image or None: The resized album cover image in RGB mode,
+        or None if the download, decoding, or caching process fails.
+    """
     if not url:
         #print("No cover URL")
         return None
@@ -442,7 +438,7 @@ def download_cover(url, size):
         #print(f"Cache hit: {path.name}")
         try:
             return Image.open(path).convert("RGB")
-        except Exception as e:
+        except Exception as e: #pylint: disable=broad-exception-caught
             print(f"Corrupt cache file {path.name}: {e}")
             path.unlink(missing_ok=True)
     #print(f"Downloading cover: {url}")
@@ -455,11 +451,11 @@ def download_cover(url, size):
         )
         r.raise_for_status()
         img = Image.open(BytesIO(r.content)).convert("RGB")
-        img = img.resize((size, size), Image.LANCZOS)
+        img = img.resize((size, size), Image.Resampling.LANCZOS)
         img.save(path, "JPEG", quality=90)
         #print(f"Saved cover → {path}")
         return img
-    except Exception as e:
+    except Exception as e: #pylint: disable=broad-exception-caught
         print(f"Cover download failed: {url}")
         print(f"Reason: {e}")
         return None
