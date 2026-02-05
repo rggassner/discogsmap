@@ -24,7 +24,7 @@ warnings.filterwarnings(
     category=UserWarning,
 )
 
-DISCOGS_USER_TOKEN = "...hd"
+DISCOGS_USER_TOKEN = "...lhq"
 DISCOGS_USERNAME = "...ma"
 
 TAG_WEIGHTS = {
@@ -350,6 +350,27 @@ def project_2d(matrix):
 
 
 def normalize_coords(coords, padding=200):
+    """
+    Normalize 2D coordinates into canvas pixel space.
+
+    This function rescales arbitrary 2D coordinates so they fit within a
+    square canvas defined by `CANVAS_SIZE`, while preserving relative spatial
+    relationships. An optional padding margin is applied to keep points away
+    from the canvas edges.
+
+    Degenerate cases where all values along an axis are equal are handled
+    safely to avoid division-by-zero errors.
+
+    Args:
+        coords (np.ndarray): Array of shape (n_items, 2) containing raw
+            2D coordinates (e.g. from dimensionality reduction).
+        padding (int, optional): Margin in pixels to reserve on each side of
+            the canvas. Defaults to 200.
+
+    Returns:
+        np.ndarray: Array of shape (n_items, 2) containing normalized (x, y)
+        coordinates in pixel space.
+    """
     x = coords[:, 0]
     y = coords[:, 1]
 
