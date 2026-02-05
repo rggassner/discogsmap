@@ -24,8 +24,8 @@ warnings.filterwarnings(
     category=UserWarning,
 )
 
-DISCOGS_USER_TOKEN = "...khd"
-DISCOGS_USERNAME = "...ma"
+DISCOGS_USER_TOKEN = "qPnmwUtnGMKrKTktZTeXUhGsdAMXdNUTWkthikhd"
+DISCOGS_USERNAME = "murilo.duma"
 
 TAG_WEIGHTS = {
     "genres": 1,
@@ -363,6 +363,28 @@ def normalize_coords(coords, padding=200):
 
 
 def layout_albums_semantic(coords, n_items):
+    """
+    Arrange albums into a grid while preserving semantic ordering.
+
+    This function takes 2D semantic coordinates (e.g. from UMAP) and converts
+    them into discrete grid positions suitable for rendering album covers.
+    Albums are first sorted by their projected coordinates to maintain
+    neighborhood relationships, then placed sequentially into a square grid.
+
+    The resulting layout avoids overlap, keeps visual structure stable, and
+    produces a deterministic canvas size based on the number of albums.
+
+    Args:
+        coords (np.ndarray): Array of shape (n_items, 2) containing 2D semantic
+            coordinates for each album.
+        n_items (int): Total number of albums to place.
+
+    Returns:
+        tuple:
+            - np.ndarray: Array of shape (n_items, 2) with pixel-space (x, y)
+              positions for each album center.
+            - tuple[int, int]: (canvas_width, canvas_height) in pixels.
+    """
     grid = math.ceil(math.sqrt(n_items))
     cell = COVER_SIZE + GAP
 
