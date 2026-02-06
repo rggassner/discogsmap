@@ -339,6 +339,21 @@ def render_map_with_path(
 
 
 def project_2d(matrix):
+    """
+    Project high-dimensional album features into a 2D semantic space.
+
+    This function uses UMAP to reduce a feature matrix describing albums
+    (genres, styles, artists, etc.) into two dimensions while preserving
+    local neighborhood relationships. The resulting coordinates are suitable
+    for visualization, distance-based traversal, and semantic path generation.
+
+    Cosine distance is used to emphasize directional similarity between
+    feature vectors rather than absolute magnitude.
+
+    Returns:
+        np.ndarray: Array of shape (n_items, 2) containing 2D semantic
+        coordinates for each album.
+    """
     reducer = umap.UMAP(
         n_components=2,
         metric="cosine",
