@@ -24,7 +24,7 @@ warnings.filterwarnings(
     category=UserWarning,
 )
 
-DISCOGS_USER_TOKEN = "...lhq"
+DISCOGS_USER_TOKEN = "...hq"
 DISCOGS_USERNAME = "...ma"
 
 TAG_WEIGHTS = {
@@ -247,7 +247,34 @@ def generate_album_playlist_global_md(albums, matrix, seed_idx, output_path):
     return list(order)
 
 
-def generate_album_playlist_greedy_md(albums, matrix, seed_idx, output_path):
+def generate_album_playlist_greedy_md(albums, matrix, seed_idx, output_path): #pylint: disable=too-many-locals
+    """
+    Generate a greedy nearest-neighbor album playlist and save it as Markdown.
+
+    Starting from a seed album, this function builds a playlist by repeatedly
+    selecting the most similar unvisited album based on cosine distance in
+    feature space. The result is a locally smooth traversal through the album
+    collection, favoring gradual stylistic transitions over global ordering.
+
+    The playlist is written to a Markdown file and includes:
+    - The seed album
+    - Ordered album entries
+    - Step-wise cosine distances between consecutive albums
+    - Embedded album cover images when available in the local cover cache
+
+    Args:
+        albums (list[dict]): List of album metadata dictionaries, each
+            containing at least "artists", "title", and optionally "cover_url".
+        matrix (np.ndarray): Feature matrix used to compute cosine distances
+            between albums.
+        seed_idx (int): Index of the seed album from which the greedy walk
+            begins.
+        output_path (str | Path): Path to the output Markdown file.
+
+    Returns:
+        list[int]: Ordered list of album indices representing the greedy
+        nearest-neighbor traversal path.
+    """
     n = len(albums)
     remaining = set(range(n))
     path = [seed_idx]
@@ -296,7 +323,7 @@ def generate_album_playlist_greedy_md(albums, matrix, seed_idx, output_path):
     return path
 
 
-def render_map_with_path(
+def render_map_with_path( #pylint: disable=too-many-positional-arguments, too-many-arguments
     albums,
     coords,
     canvas_w,
