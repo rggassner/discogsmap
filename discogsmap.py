@@ -24,7 +24,7 @@ warnings.filterwarnings(
     category=UserWarning,
 )
 
-DISCOGS_USER_TOKEN = "...hq"
+DISCOGS_USER_TOKEN = "...Glhq"
 DISCOGS_USERNAME = "...ma"
 
 TAG_WEIGHTS = {
@@ -215,6 +215,34 @@ def convert_md_to_html(md_path, html_path=None):
     print(f"Converted {md_path} to {html_path}")
 
 def generate_album_playlist_global_md(albums, matrix, seed_idx, output_path):
+    """
+    Generate a globally sorted album playlist by distance from a seed album.
+
+    This function computes the cosine distance from a chosen seed album to all
+    other albums in feature space and produces a playlist ordered by increasing
+    distance. Unlike the greedy nearest-neighbor approach, this method reflects
+    global similarity to the seed rather than local continuity between
+    consecutive albums.
+
+    The resulting playlist is saved as a Markdown file and includes:
+    - The seed album
+    - Albums ordered by global cosine distance
+    - Per-album distance values relative to the seed
+    - Embedded album cover images when available in the local cover cache
+
+    Args:
+        albums (list[dict]): List of album metadata dictionaries, each
+            containing at least "artists", "title", and optionally "cover_url".
+        matrix (np.ndarray): Feature matrix representing album descriptors
+            (genres, styles, artists, etc.).
+        seed_idx (int): Index of the seed album used as the global reference
+            point.
+        output_path (str | Path): Path to the output Markdown file.
+
+    Returns:
+        list[int]: Ordered list of album indices sorted by increasing distance
+        from the seed album.
+    """
     distances = cosine_distances(
         matrix[seed_idx].reshape(1, -1),
         matrix
