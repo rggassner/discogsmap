@@ -24,7 +24,7 @@ warnings.filterwarnings(
     category=UserWarning,
 )
 
-DISCOGS_USER_TOKEN = "...Glhq"
+DISCOGS_USER_TOKEN = "...lhq"
 DISCOGS_USERNAME = "...ma"
 
 TAG_WEIGHTS = {
@@ -201,6 +201,26 @@ def build_feature_matrix(tags):
 
 
 def convert_md_to_html(md_path, html_path=None):
+    """
+    Convert a Markdown file into a standalone HTML file.
+
+    This function reads a Markdown document from disk, renders it to HTML
+    using the Python Markdown library, and writes the resulting HTML to a
+    file. If no output path is provided, the HTML file is created alongside
+    the Markdown file using the same base name.
+
+    The conversion supports common GitHub-style Markdown features via the
+    "extra" extension.
+
+    Args:
+        md_path (str | Path): Path to the input Markdown (.md) file.
+        html_path (str | Path | None, optional): Path to the output HTML file.
+            If None, the output path is derived by replacing the .md suffix
+            with .html.
+
+    Returns:
+        None
+    """
     if html_path is None:
         html_path = md_path.with_suffix(".html") if isinstance(md_path, Path) else md_path.replace(".md", ".html")
 
