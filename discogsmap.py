@@ -195,6 +195,25 @@ def extract_features(items, tag_weights=TAG_WEIGHTS):
 
 
 def build_feature_matrix(tags):
+    """
+    Build a dense feature matrix from album tag dictionaries.
+
+    This function converts a list of per-album feature dictionaries
+    (e.g. genres, styles, artists with weighted counts) into a numerical
+    matrix suitable for machine learning and distance calculations.
+
+    Internally, it uses scikit-learn's DictVectorizer to one-hot encode
+    feature keys and apply their associated weights, producing a dense
+    matrix where each row represents an album and each column represents
+    a unique tag.
+
+    Args:
+        tags (list[dict]): List of feature dictionaries, one per album.
+
+    Returns:
+        np.ndarray: Dense 2D array of shape (n_items, n_features) containing
+        the vectorized album features.
+    """
     vectorizer = DictVectorizer(sparse=False)
     matrix = vectorizer.fit_transform(tags)
     return matrix
