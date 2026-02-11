@@ -121,7 +121,43 @@ def collect_releases(client, sleep=1.0):
     return items
 
 
-def extract_features(items, tag_weights=TAG_WEIGHTS):
+def extract_features(items, tag_weights=TAG_WEIGHTS): #pylint: disable=too-many-branches, too-many-locals, dangerous-default-value
+    """
+    Extract weighted feature representations from Discogs release items.
+
+    This function processes a collection of Discogs releases and builds two
+    parallel structures:
+
+    - A list of album metadata dictionaries (id, title, artists, genres,
+      styles, cover URL).
+    - A list of corresponding feature dictionaries suitable for vectorization.
+
+    Feature extraction is based on weighted tags:
+        - Genres
+        - Styles
+        - Artists
+
+    Tag weights are configurable via `tag_weights`, allowing different
+    influence levels for stylistic vs. artist similarity.
+
+    To minimize API usage and improve performance, album metadata is cached
+    locally. If a release is already present in the cache, its stored data is
+    reused without additional API calls. Newly encountered releases are
+    refreshed from Discogs, processed, cached, and (if available) their cover
+    images are downloaded to the local cover cache.
+
+    Releases that fail to refresh or produce no valid features are skipped.
+
+    Args:
+        items (list): Iterable of Discogs collection items.
+        tag_weights (dict, optional): Dictionary defining the relative weight
+            of each tag category (e.g. "genres", "styles", "artists").
+
+    Returns:
+        tuple:
+            - list[dict]: Album metadata dictionaries.
+            - list[dict]: Feature dictionaries aligned by index with `albums`.
+    """ 
     cache = load_cache()
     albums = []
     feature_dicts = []
@@ -152,7 +188,7 @@ def extract_features(items, tag_weights=TAG_WEIGHTS):
         rate_limit()
         try:
             r.refresh()
-        except Exception:
+        except Exception: #pylint: disable=broad-exception-caught
             continue
 
         genres = r.genres or []
