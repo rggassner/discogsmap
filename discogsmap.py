@@ -24,8 +24,8 @@ warnings.filterwarnings(
     category=UserWarning,
 )
 
-DISCOGS_USER_TOKEN = "...lhq"
-DISCOGS_USERNAME = "...ma"
+DISCOGS_USER_TOKEN = "...hq"
+DISCOGS_USERNAME = "...a"
 
 TAG_WEIGHTS = {
     "genres": 1,
@@ -93,6 +93,25 @@ def get_user_folders(client):
 
 
 def collect_releases(client, sleep=1.0):
+    """
+    Collect releases from selected Discogs collection folders.
+
+    This function retrieves collection items from the authenticated user's
+    Discogs account. If specific folder names are defined in the global
+    `FOLDERS` configuration, only those folders are queried. Otherwise,
+    all user folders are processed.
+
+    Releases are fetched page by page to handle large collections, with an
+    optional delay between page requests to respect API rate limits.
+
+    Args:
+        client (discogs_client.Client): Authenticated Discogs client.
+        sleep (float, optional): Delay in seconds between paginated API
+            requests. Defaults to 1.0.
+
+    Returns:
+        list: List of Discogs collection items.
+    """
     folders = get_user_folders(client)
 
     if FOLDERS:
