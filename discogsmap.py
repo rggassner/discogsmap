@@ -24,8 +24,8 @@ warnings.filterwarnings(
     category=UserWarning,
 )
 
-DISCOGS_USER_TOKEN = "...hq"
-DISCOGS_USERNAME = "...a"
+DISCOGS_USER_TOKEN = "wMtErPGaexgfAkdtcHdiWeCgaJRwWOdRjYLrGlhq"
+DISCOGS_USERNAME = "murilo.duma"
 
 TAG_WEIGHTS = {
     "genres": 1,
@@ -88,6 +88,21 @@ def init_discogs():
 
 
 def get_user_folders(client):
+    """
+    Retrieve the user's Discogs collection folders.
+
+    This function queries the authenticated Discogs user and returns
+    a dictionary mapping folder names to their corresponding folder
+    objects. These folder objects can then be used to access paginated
+    release data.
+
+    Args:
+        client (discogs_client.Client): Authenticated Discogs API client.
+
+    Returns:
+        dict[str, object]: Dictionary where keys are folder names and
+        values are Discogs collection folder objects.
+    """
     user = client.user(DISCOGS_USERNAME)
     return {f.name: f for f in user.collection_folders}
 
