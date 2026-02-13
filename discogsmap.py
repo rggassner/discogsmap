@@ -24,8 +24,8 @@ warnings.filterwarnings(
     category=UserWarning,
 )
 
-DISCOGS_USER_TOKEN = "wMtErPGaexgfAkdtcHdiWeCgaJRwWOdRjYLrGlhq"
-DISCOGS_USERNAME = "murilo.duma"
+DISCOGS_USER_TOKEN = "...hq"
+DISCOGS_USERNAME = "....ma"
 
 TAG_WEIGHTS = {
     "genres": 1,
