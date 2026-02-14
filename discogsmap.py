@@ -24,8 +24,8 @@ warnings.filterwarnings(
     category=UserWarning,
 )
 
-DISCOGS_USER_TOKEN = "...hq"
-DISCOGS_USERNAME = "....ma"
+DISCOGS_USER_TOKEN = "...pHz"
+DISCOGS_USERNAME = "...ma"
 
 TAG_WEIGHTS = {
     "genres": 1,
@@ -81,6 +81,17 @@ def cover_cache_path(url, size):
 
 
 def init_discogs():
+    """
+    Initialize and return an authenticated Discogs API client.
+
+    This function creates a Discogs client instance using the configured
+    application name and the user token defined in `DISCOGS_USER_TOKEN`.
+    The returned client is used for all subsequent API interactions,
+    including collection access and release metadata retrieval.
+
+    Returns:
+        discogs_client.Client: Authenticated Discogs client instance.
+    """
     return discogs_client.Client(
         "AlbumMap/0.1",
         user_token=DISCOGS_USER_TOKEN
