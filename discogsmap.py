@@ -76,6 +76,24 @@ def rate_limit(min_interval=RATE_LIMIT_INTERVAL):
 
 
 def cover_cache_path(url, size):
+    """
+    Generate a deterministic cache file path for an album cover image.
+
+    This function creates a unique filename based on a SHA-1 hash of the
+    image URL and the requested image size. The hash ensures filesystem-safe
+    naming while preventing collisions between different cover URLs or
+    size variants.
+
+    The resulting path points inside the configured cover cache directory.
+
+    Args:
+        url (str): Original cover image URL.
+        size (int): Target image size in pixels (used to distinguish
+            differently resized versions of the same image).
+
+    Returns:
+        pathlib.Path: Full path to the cached cover image file.
+    """
     h = hashlib.sha1(url.encode("utf-8")).hexdigest()
     return COVER_CACHE_DIR / f"{h}_{size}.jpg"
 
