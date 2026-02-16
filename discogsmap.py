@@ -67,7 +67,25 @@ def save_cache(cache):
 
 
 def rate_limit(min_interval=RATE_LIMIT_INTERVAL):
-    global LAST_CALL
+    """
+    Enforce a minimum delay between consecutive API calls.
+
+    This function ensures that at least `min_interval` seconds elapse
+    between external requests. If the previous call occurred too recently,
+    execution is paused for the remaining time.
+
+    A module-level timestamp (`LAST_CALL`) is updated after each enforced
+    interval, allowing successive calls to remain compliant with API
+    rate limits.
+
+    Args:
+        min_interval (float, optional): Minimum number of seconds required
+            between calls. Defaults to RATE_LIMIT_INTERVAL.
+
+    Returns:
+        None
+    """
+    global LAST_CALL #pylint: disable=global-statement
     now = time.time()
     delta = now - LAST_CALL
     if delta < min_interval:
