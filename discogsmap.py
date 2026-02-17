@@ -24,7 +24,7 @@ warnings.filterwarnings(
     category=UserWarning,
 )
 
-DISCOGS_USER_TOKEN = "...pHz"
+DISCOGS_USER_TOKEN = "...xpHz"
 DISCOGS_USERNAME = "...ma"
 
 TAG_WEIGHTS = {
@@ -62,6 +62,23 @@ def load_cache():
 
 
 def save_cache(cache):
+    """
+    Persist the album metadata cache to disk.
+
+    This function serializes the in-memory cache dictionary to the JSON
+    file defined by `CACHE_FILE`. The cache stores previously retrieved
+    album metadata to reduce redundant API calls in future runs.
+
+    Data is written in a human-readable format using indentation for
+    easier inspection and debugging.
+
+    Args:
+        cache (dict): Dictionary mapping release IDs to cached album
+            metadata.
+
+    Returns:
+        None
+    """
     with open(CACHE_FILE, "w", encoding="utf-8") as f:
         json.dump(cache, f, indent=2)
 
