@@ -24,13 +24,13 @@ warnings.filterwarnings(
     category=UserWarning,
 )
 
-DISCOGS_USER_TOKEN = "...xpHz"
-DISCOGS_USERNAME = "...ma"
+DISCOGS_USER_TOKEN = "....pHz"
+DISCOGS_USERNAME = "...scu"
 
 TAG_WEIGHTS = {
     "genres": 1,
     "styles": 2,
-    "artists": 3,
+    "artists": 0,
 }
 
 CACHE_FILE = Path("discogs_album_cache.json")
@@ -55,6 +55,20 @@ RATE_LIMIT_INTERVAL = 1
 
 
 def load_cache():
+    """
+    Load the album metadata cache from disk.
+
+    This function attempts to read the JSON cache file defined by
+    `CACHE_FILE`. If the file exists, its contents are deserialized
+    and returned as a dictionary mapping release IDs to album metadata.
+
+    If no cache file is found, an empty dictionary is returned,
+    allowing the calling code to proceed without special handling.
+
+    Returns:
+        dict: Cached album metadata keyed by release ID. Returns an
+        empty dictionary if the cache file does not exist.
+    """
     if CACHE_FILE.exists():
         with open(CACHE_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
@@ -386,6 +400,98 @@ def convert_md_to_html(md_path, html_path=None):
         f.write(html)
 
     print(f"Converted {md_path} to {html_path}")
+
+def generate_style_highlight_gif( #pylint: disable=too-many-locals,too-many-positional-arguments,too-many-arguments
+    albums,
+    coords,
+    canvas_w,
+    canvas_h,
+    output_path="album_styles.gif",
+    frame_duration=1000  # milliseconds (1000ms = 1 second)
+):
+    """
+    Generate an animated GIF highlighting albums by style.
+
+    For each unique style in the collection:
+    - A frame is rendered
+    - A header displays the current style name
+    - All albums containing that style are outlined in red
+
+    Args:
+        albums (list[dict]): Album metadata list.
+        coords (np.ndarray): Pixel-space coordinates for albums.
+        canvas_w (int): Canvas width.
+        canvas_h (int): Canvas height.
+        output_path (str): Output GIF path.
+        frame_duration (int): Frame duration in milliseconds.
+
+    Returns:
+        None
+    """
+
+    # Collect all unique styles
+    all_styles = sorted({
+        style
+        for album in albums
+        for style in album.get("styles", [])
+    })
+
+    if not all_styles:
+        print("No styles found. GIF not generated.")
+        return
+
+    frames = []
+
+    for style in all_styles:
+        print(f"Rendering frame for style: {style}")
+
+        # Base map
+        canvas = render_map(albums, coords, canvas_w, canvas_h)
+        draw = ImageDraw.Draw(canvas)
+
+        # Header background bar
+        header_height = 80
+        draw.rectangle(
+            (0, 0, canvas_w, header_height),
+            fill=(20, 20, 20)
+        )
+
+        # Header text
+        header_text = f"STYLE: {style}"
+        draw.text(
+            (40, 25),
+            header_text,
+            fill=(255, 255, 255)
+        )
+
+        # Draw red contour for albums with this style
+        for album, (x, y) in zip(albums, coords):
+            if style in album.get("styles", []):
+                r = COVER_SIZE // 2 + 6
+                draw.rectangle(
+                    (
+                        int(x - r),
+                        int(y - r),
+                        int(x + r),
+                        int(y + r),
+                    ),
+                    outline=(255, 0, 0),
+                    width=6
+                )
+
+        frames.append(canvas)
+
+    # Save GIF
+    frames[0].save(
+        output_path,
+        save_all=True,
+        append_images=frames[1:],
+        duration=frame_duration,
+        loop=0
+    )
+
+    print(f"Saved animated style GIF to {output_path}")
+
 
 def generate_album_playlist_global_md(albums, matrix, seed_idx, output_path):
     """
@@ -812,6 +918,14 @@ def main():
     image = render_map(albums, coords, w, h)
     image.save(OUTPUT_IMAGE)
     print(f"Saved map to {OUTPUT_IMAGE}")
+    generate_style_highlight_gif(
+        albums,
+        coords,
+        w,
+        h,
+        output_path="album_styles.gif",
+        frame_duration=1000
+    )
     seed_idx = random.randrange(len(albums))
     global_md = "album_playlist_global.md"
     greedy_md = "album_playlist_greedy.md"
