@@ -1,4 +1,46 @@
 #!venv/bin/python3
+"""
+discogsmap — Discogs Collection Semantic Visualizer and Playlist Generator
+===========================================================================
+
+discogsmap analyzes a user's Discogs collection and transforms it into a
+semantic visual map and similarity-based playlists.
+
+The pipeline works as follows:
+
+1. Connects to the Discogs API using a user token.
+2. Collects releases from selected collection folders.
+3. Extracts weighted feature representations from genres, styles,
+   and optionally artists.
+4. Builds a numerical feature matrix from tag data.
+5. Projects albums into a 2D semantic space using UMAP with cosine distance.
+6. Normalizes and arranges albums into a structured grid layout.
+7. Renders a high-resolution visual album map using cached cover artwork.
+8. Generates two playlist variants:
+     - Global similarity ordering from a seed album.
+     - Greedy nearest-neighbor walk for smoother transitions.
+9. Exports playlists as Markdown and converts them to HTML.
+10. Renders annotated maps visualizing each playlist traversal path.
+11. Optionally generates an animated GIF highlighting albums by style.
+
+Key characteristics:
+
+- Deterministic layout via configurable random seed.
+- Local JSON cache to avoid redundant Discogs API calls.
+- Local image cache for album covers with automatic corruption handling.
+- Configurable tag weighting for stylistic experimentation.
+- High-resolution rendering suitable for large displays or printing.
+
+Output artifacts include:
+- A base album map image.
+- Two playlist Markdown files (global and greedy).
+- HTML-rendered playlist versions.
+- Path-annotated map images.
+- Optional animated style-highlight GIF.
+
+This script is designed as both a visualization tool and an exploratory
+engine for navigating musical collections through semantic similarity.
+"""
 import json
 from collections import Counter
 import hashlib
@@ -24,7 +66,7 @@ warnings.filterwarnings(
     category=UserWarning,
 )
 
-DISCOGS_USER_TOKEN = "....pHz"
+DISCOGS_USER_TOKEN = "...Hz"
 DISCOGS_USERNAME = "...scu"
 
 TAG_WEIGHTS = {
@@ -878,7 +920,7 @@ def download_cover(url, size):
 
 def main():
     """
-    Entry point for the AlbumMap pipeline.
+    Entry point for the discogsmap pipeline.
 
     This function orchestrates the full workflow:
     - Initializes deterministic randomness for reproducible layouts and paths.
