@@ -1,4 +1,5 @@
 #!venv/bin/python3
+#pylint: disable=too-many-lines
 """
 discogsmap — Discogs Collection Semantic Visualizer and Playlist Generator
 ===========================================================================
@@ -66,8 +67,8 @@ warnings.filterwarnings(
     category=UserWarning,
 )
 
-DISCOGS_USER_TOKEN = "...Hz"
-DISCOGS_USERNAME = "...scu"
+DISCOGS_USER_TOKEN = "...xpHz"
+DISCOGS_USERNAME = "....scu"
 
 TAG_WEIGHTS = {
     "genres": 1,
@@ -311,7 +312,7 @@ def extract_features(items, tag_weights=TAG_WEIGHTS): #pylint: disable=too-many-
         tuple:
             - list[dict]: Album metadata dictionaries.
             - list[dict]: Feature dictionaries aligned by index with `albums`.
-    """ 
+    """
     cache = load_cache()
     albums = []
     feature_dicts = []
@@ -431,7 +432,9 @@ def convert_md_to_html(md_path, html_path=None):
         None
     """
     if html_path is None:
-        html_path = md_path.with_suffix(".html") if isinstance(md_path, Path) else md_path.replace(".md", ".html")
+        html_path = md_path.with_suffix(".html") \
+                if isinstance(md_path, Path) \
+                else md_path.replace(".md", ".html")
 
     with open(md_path, "r", encoding="utf-8") as f:
         text = f.read()
@@ -998,4 +1001,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
